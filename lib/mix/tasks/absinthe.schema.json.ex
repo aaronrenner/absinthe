@@ -23,6 +23,8 @@ defmodule Mix.Tasks.Absinthe.Schema.Json do
      Default: As [configured](https://hexdocs.pm/mix/Mix.Config.html) for `:absinthe` `:schema`
   * `--json-codec` - Codec to use to generate the JSON file (see [Custom Codecs](#module-custom-codecs)).
      Default: [`Jason`](https://hexdocs.pm/jason/)
+  * `--deprecated` - Include deprecated fields in output. Can be disabled using `--no-deprecated`.
+     Default: `true`
   * `--pretty` - Whether to pretty-print.
      Default: `false`
 
@@ -60,12 +62,13 @@ defmodule Mix.Tasks.Absinthe.Schema.Json do
   defmodule Options do
     @moduledoc false
 
-    defstruct filename: nil, schema: nil, json_codec: nil, pretty: false
+    defstruct filename: nil, schema: nil, json_codec: nil, deprecated: true, pretty: false
 
     @type t() :: %__MODULE__{
             filename: String.t(),
             schema: module(),
             json_codec: module(),
+            deprecated: boolean(),
             pretty: boolean()
           }
   end
@@ -95,10 +98,12 @@ defmodule Mix.Tasks.Absinthe.Schema.Json do
   @spec generate_schema(Options.t()) :: {:error, binary()} | {:ok, String.t()}
   def generate_schema(%Options{
         pretty: pretty,
+        deprecated: deprecated,
         schema: schema,
         json_codec: json_codec
       }) do
-    with {:ok, result} <- Absinthe.Schema.introspect(schema) do
+    with {:ok, result} <-
+           Absinthe.Schema.introspect(schema, variables: %{"includeDeprecated" => deprecated}) do
       content = json_codec.encode!(result, pretty: pretty)
       {:ok, content}
     end
@@ -107,13 +112,17 @@ defmodule Mix.Tasks.Absinthe.Schema.Json do
   @doc false
   @spec parse_options([String.t()]) :: Options.t()
   def parse_options(argv) do
-    parse_options = [strict: [schema: :string, json_codec: :string, pretty: :boolean]]
+    parse_options = [
+      strict: [schema: :string, json_codec: :string, deprecated: :boolean, pretty: :boolean]
+    ]
+
     {opts, args, _} = OptionParser.parse(argv, parse_options)
 
     %Options{
       filename: args |> List.first() || @default_filename,
       schema: find_schema(opts),
       json_codec: json_codec_as_atom(opts),
+      deprecated: Keyword.get(opts, :deprecated, true),
       pretty: Keyword.get(opts, :pretty, false)
     }
   end

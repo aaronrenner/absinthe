@@ -114,5 +114,69 @@ defmodule Mix.Tasks.Absinthe.Schema.JsonTest do
 
       assert File.exists?(path)
     end
+
+    @tag :tmp_dir
+    test "generates a JSON file without deprecated fields when requested", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "schema.json")
+
+      argv = ["--schema", inspect(Absinthe.Fixtures.Things.MacroSchema), "--no-deprecated", path]
+      assert Task.run(argv)
+
+      assert File.exists?(path)
+
+      decoded_schema = path |> File.read!() |> Jason.decode!()
+
+      input_thing_field_names =
+        get_in(
+          decoded_schema,
+          [
+            "data",
+            "__schema",
+            "types",
+            Access.filter(&(&1["name"] == "InputThing")),
+            "inputFields",
+            Access.all(),
+            "name"
+          ]
+        )
+        |> List.flatten()
+
+      assert "value" in input_thing_field_names
+      refute "deprecatedField" in input_thing_field_names
+      refute "deprecatedFieldWithReason" in input_thing_field_names
+      refute "deprecatedNonNullFields" in input_thing_field_names
+    end
+
+    @tag :tmp_dir
+    test "generates a JSON file with deprecated fields when requested", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, "schema.json")
+
+      argv = ["--schema", inspect(Absinthe.Fixtures.Things.MacroSchema), "--deprecated", path]
+      assert Task.run(argv)
+
+      assert File.exists?(path)
+
+      decoded_schema = path |> File.read!() |> Jason.decode!()
+
+      input_thing_field_names =
+        get_in(
+          decoded_schema,
+          [
+            "data",
+            "__schema",
+            "types",
+            Access.filter(&(&1["name"] == "InputThing")),
+            "inputFields",
+            Access.all(),
+            "name"
+          ]
+        )
+        |> List.flatten()
+
+      assert "value" in input_thing_field_names
+      assert "deprecatedField" in input_thing_field_names
+      assert "deprecatedFieldWithReason" in input_thing_field_names
+      assert "deprecatedNonNullField" in input_thing_field_names
+    end
   end
 end
